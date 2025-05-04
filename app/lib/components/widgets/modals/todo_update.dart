@@ -11,10 +11,16 @@ import '../../common/styles/button.dart';
 import '../fields/preceding_todo_dropdown.dart';
 
 class TodoUpdateFormModal extends ConsumerStatefulWidget {
-  const TodoUpdateFormModal({super.key, required this.todo, this.parentTodo});
+  const TodoUpdateFormModal({
+    super.key,
+    required this.todo,
+    required this.children,
+    this.parentTodo,
+  });
 
   final Todo todo;
   final Todo? parentTodo;
+  final List<Todo> children;
 
   @override
   TodoUpdateFormModalState createState() => TodoUpdateFormModalState();
@@ -52,6 +58,15 @@ class TodoUpdateFormModalState extends ConsumerState<TodoUpdateFormModal> {
     final parentIsCompleted =
         parentCompletedDiff != null && parentCompletedDiff > 0;
 
+    final isCompletable =
+        !isCompleted && !(widget.todo.parentTodo != null && !parentIsCompleted);
+
+    final childrenIsCompleted = widget.children.any((e) {
+      final completedDiff = e.completedAt?.compareTo(DateTime.now());
+      final isCompleted = completedDiff != null && completedDiff > 0;
+      return isCompleted;
+    });
+
     return Scaffold(
       body: SafeArea(
         child: Form(
@@ -64,7 +79,7 @@ class TodoUpdateFormModalState extends ConsumerState<TodoUpdateFormModal> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(0, 8, 8, 0),
                   child:
-                      widget.todo.parentTodo == null || parentIsCompleted
+                      isCompletable || (isCompleted && !childrenIsCompleted)
                           ? TextButton(
                             style: TextButtonStyles.primaryTextButtonStyle,
                             onPressed: () async {
@@ -73,6 +88,7 @@ class TodoUpdateFormModalState extends ConsumerState<TodoUpdateFormModal> {
                                 completedAt:
                                     isCompleted ? null : DateTime.now(),
                                 content: widget.todo.content,
+                                parentTodoId: widget.todo.parentTodo,
                               );
                               ref
                                   .read(todoUncompletedListProvider.notifier)
@@ -147,8 +163,9 @@ class TodoUpdateFormModalState extends ConsumerState<TodoUpdateFormModal> {
                                 selectedParentTodoIdProvider,
                               );
 
-                              await TodoRepository().partialUpdate(
+                              await TodoRepository().update(
                                 widget.todo.id,
+                                completedAt: widget.todo.completedAt,
                                 content: contentController.text,
                                 parentTodoId:
                                     selectedId != null && selectedId != 'null'

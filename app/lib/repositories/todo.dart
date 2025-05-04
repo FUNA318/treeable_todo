@@ -8,6 +8,7 @@ import 'local_config.dart';
 enum TodoStatus { all, completed, uncompleted }
 
 abstract class TodoApiRepository {
+  Future<List<Todo>> list();
   Future<List<Todo>> fetchCompletedTree();
   Future<List<Todo>> fetchUncompletedTree();
   Future<Todo?> create({required String content});
@@ -20,6 +21,7 @@ abstract class TodoApiRepository {
     String id, {
     required String content,
     required DateTime completedAt,
+    required String? parentTodoId,
   });
   Future<List<Todo>> bulkUpdate(List<String> idList);
   Future<void> delete(String id);
@@ -48,10 +50,12 @@ class TodoRepository extends TodoApiRepository {
     String id, {
     required String? content,
     required DateTime? completedAt,
+    required String? parentTodoId,
   }) async {
     final body = {
       'content': content,
       'completed_at': completedAt?.toIso8601String(),
+      'patent_todo_id': parentTodoId,
     };
 
     final response = await client.put(
@@ -109,10 +113,24 @@ class TodoRepository extends TodoApiRepository {
   }
 
   @override
+  Future<List<Todo>> list() async {
+    final response = await client.getWithCheck(Uri.parse('$baseURL/'));
+    if (response.statusCode == 200) {
+      final content =
+          jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      return content
+          .map((e) => Todo.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
+  @override
   Future<List<Todo>> fetchCompletedTree() async {
     final response = await client.getWithCheck(Uri.parse('$baseURL/completed'));
     if (response.statusCode == 200) {
-      final content = jsonDecode(response.body) as List<dynamic>;
+      final content =
+          jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
       return content
           .map((e) => Todo.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -126,7 +144,8 @@ class TodoRepository extends TodoApiRepository {
       Uri.parse('$baseURL/uncompleted'),
     );
     if (response.statusCode == 200) {
-      final content = jsonDecode(response.body) as List<dynamic>;
+      final content =
+          jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
       return content
           .map((e) => Todo.fromJson(e as Map<String, dynamic>))
           .toList();

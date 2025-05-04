@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
+import com.example.demo.projection.TodoMaxPriority;
 import com.example.demo.projection.TodoWithDepth;
 
 public interface TodoRepository extends JpaRepository<Todo, String>, JpaSpecificationExecutor<Todo> {
@@ -15,6 +16,9 @@ public interface TodoRepository extends JpaRepository<Todo, String>, JpaSpecific
 
   @Query(value = "SELECT * FROM todos WHERE todos.id = :id AND todos.user_id = :userId LIMIT 1", nativeQuery = true)
   Optional<Todo> findPermittedById(String id, String userId);
+
+  @Query(value = "SELECT MAX(todos.priority) AS priority FROM todos WHERE todos.user_id = :userId", nativeQuery = true)
+  TodoMaxPriority findMaxPriorityByUserId(String userId);
 
   @Query(value = """
   WITH RECURSIVE permitted_todos AS (
@@ -107,9 +111,12 @@ public interface TodoRepository extends JpaRepository<Todo, String>, JpaSpecific
           todos_tree.depth + 1 AS depth
         FROM todos_tree
         INNER JOIN permitted_todos
-        ON todos_tree.id = permitted_todos.parent_todo_id AND permitted_todos.status = 'uncompleted'
+        ON (
+          todos_tree.id = permitted_todos.parent_todo_id 
+          AND permitted_todos.status = 'uncompleted'
+        )
     )
-  SELECT * FROM todos_tree;
+  SELECT * FROM todos_tree ORDER BY todos_tree.priority;
   """, nativeQuery = true)
   List<TodoWithDepth> listTreeUncompleted(String userId);
 }

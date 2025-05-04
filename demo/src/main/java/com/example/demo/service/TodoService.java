@@ -35,7 +35,7 @@ public class TodoService {
             predicates.add(inClause);
           }
 
-          query.orderBy(cb.desc(root.get("priority")));
+          if(query != null) query.orderBy(cb.desc(root.get("priority")));
 
           return cb.and(predicates.toArray(new Predicate[0]));
       });
@@ -61,7 +61,7 @@ public class TodoService {
               }
             }
 
-            query.orderBy(cb.desc(root.get("priority")));
+            if(query != null) query.orderBy(cb.desc(root.get("priority")));
 
             return cb.and(predicates.toArray(new Predicate[0]));
         });

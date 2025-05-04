@@ -9,12 +9,14 @@ class TodoTile extends ConsumerWidget {
     super.key,
     required this.todo,
     required this.onDismissed,
+    required this.children,
     this.parentTodo,
   });
 
   final Todo todo;
   final Todo? parentTodo;
-  final void Function(DismissDirection)? onDismissed;
+  final List<Todo> children;
+  final Future<bool?> Function(DismissDirection)? onDismissed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,13 +32,22 @@ class TodoTile extends ConsumerWidget {
     final parentIsCompleted =
         parentCompletedDiff != null && parentCompletedDiff > 0;
 
+    final isCompletable =
+        !isCompleted && !(todo.parentTodo != null && !parentIsCompleted);
+
+    final isRemovable = children.isEmpty;
+
     return Dismissible(
       key: Key(todo.id),
-      onDismissed: onDismissed,
+      confirmDismiss: onDismissed,
       direction:
-          isCompleted || !parentIsCompleted
-              ? DismissDirection.endToStart
-              : DismissDirection.horizontal,
+          isCompletable && isRemovable
+              ? DismissDirection.horizontal
+              : !isRemovable
+              ? isCompletable
+                  ? DismissDirection.startToEnd
+                  : DismissDirection.none
+              : DismissDirection.endToStart,
       secondaryBackground: Container(
         color: colorTheme.error,
         alignment: Alignment.centerRight,
@@ -51,9 +62,7 @@ class TodoTile extends ConsumerWidget {
       ),
       child: ListTile(
         trailing:
-            isCompleted || parentIsCompleted
-                ? Icon(Icons.check, color: colorTheme.primary)
-                : null,
+            isCompleted ? Icon(Icons.check, color: colorTheme.primary) : null,
         title: Text(todo.content),
         titleTextStyle: textTheme.bodyLarge?.copyWith(
           overflow: TextOverflow.ellipsis,
@@ -67,7 +76,11 @@ class TodoTile extends ConsumerWidget {
             builder: (context) {
               return FractionallySizedBox(
                 heightFactor: 0.75,
-                child: TodoUpdateFormModal(todo: todo, parentTodo: parentTodo),
+                child: TodoUpdateFormModal(
+                  todo: todo,
+                  parentTodo: parentTodo,
+                  children: children,
+                ),
               );
             },
           );

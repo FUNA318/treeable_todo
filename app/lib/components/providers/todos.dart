@@ -7,7 +7,7 @@ part 'todos.g.dart';
 
 @riverpod
 Future<List<Todo>> todoList(Ref ref) async {
-  final todoList = await TodoRepository().fetchUncompletedTree();
+  final todoList = await TodoRepository().list();
   return todoList;
 }
 
@@ -28,16 +28,35 @@ class TodoCompletedList extends _$TodoCompletedList {
     state = state != null ? [...state!] : [];
   }
 
-  List<Todo> realign(int oldIndex, int newIndex) {
+  List<Todo> realign(
+    int depth,
+    int oldIndex,
+    int newIndex,
+    String? parentTodoId,
+  ) {
     if (state == null) return [];
 
-    final newList = List<Todo>.from(state!.toList());
+    final stateList = state ?? [];
+
+    final newList = List<Todo>.from(
+      stateList.where((e) => e.depth == depth).toList(),
+    );
     if (oldIndex < newIndex) newIndex -= 1;
     final item = newList.removeAt(oldIndex);
     newList.insert(newIndex, item);
 
-    state = newList;
-    return newList;
+    if (parentTodoId != null) {
+      state = [
+        ...stateList.where((e) {
+          return !newList.map((el) => el.id).contains(e.id);
+        }),
+        ...newList,
+      ];
+    } else {
+      state = [...newList, ...stateList.where((e) => e.depth != 0)];
+    }
+
+    return state ?? [];
   }
 }
 
@@ -58,16 +77,42 @@ class TodoUncompletedList extends _$TodoUncompletedList {
     state = state != null ? [...state!] : [];
   }
 
-  List<Todo> realign(int oldIndex, int newIndex) {
+  List<Todo> realign(
+    int depth,
+    int oldIndex,
+    int newIndex,
+    String? parentTodoId,
+  ) {
     if (state == null) return [];
 
-    final newList = List<Todo>.from(state!.toList());
+    final stateList = state ?? [];
+
+    final newList = List<Todo>.from(
+      stateList
+          .where(
+            (e) =>
+                parentTodoId == null
+                    ? e.depth == depth
+                    : e.depth == depth && e.parentTodo == parentTodoId,
+          )
+          .toList(),
+    );
     if (oldIndex < newIndex) newIndex -= 1;
     final item = newList.removeAt(oldIndex);
     newList.insert(newIndex, item);
 
-    state = newList;
-    return newList;
+    if (parentTodoId != null) {
+      state = [
+        ...stateList.where((e) {
+          return !newList.map((el) => el.id).contains(e.id);
+        }),
+        ...newList,
+      ];
+    } else {
+      state = [...newList, ...stateList.where((e) => e.depth != 0)];
+    }
+
+    return state ?? [];
   }
 }
 

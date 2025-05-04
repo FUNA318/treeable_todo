@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../repositories/http_client.dart';
 import '../../providers/auth_user.dart';
 import '../../providers/todos.dart';
-import '../list/umcompleted_todos_layer.dart';
+import '../list/uncompleted_todos.dart';
 
 class UncompletedTodoListTab extends ConsumerStatefulWidget {
   const UncompletedTodoListTab({super.key});
@@ -39,6 +39,8 @@ class _UncompletedTodoListTabState
 
     if (todoList == null) return const SizedBox.shrink();
 
-    return const UncompletedTodoListLayer();
+    return const SingleChildScrollView(
+      child: Column(children: [UncompletedTodoListLayer()]),
+    );
   }
 }

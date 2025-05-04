@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.auth.LoginUserDetails;
@@ -28,8 +27,10 @@ import com.example.demo.form.TodoBulkForm;
 import com.example.demo.form.TodoForm;
 import com.example.demo.model.Todo;
 import com.example.demo.model.TodoRepository;
+import com.example.demo.projection.TodoMaxPriority;
 import com.example.demo.projection.TodoWithDepth;
 import com.example.demo.response.TodoResponse;
+import com.example.demo.response.TodoSimpleResponse;
 import com.example.demo.service.TodoService;
 
 @CrossOrigin(
@@ -48,10 +49,26 @@ public class TodoController {
         _todoService = todoService;
     }
 
+    @GetMapping("/")
+    public List<TodoSimpleResponse> list(
+        @AuthenticationPrincipal LoginUserDetails userDetails
+    ) {
+        List<Todo> todos = _todoRepository.findAllByUserId(userDetails.getId());
+        return todos.stream()
+        .map(todo -> new TodoSimpleResponse(
+            todo.getId(),
+            todo.getContent(),
+            todo.getParentTodo() != null ? todo.getParentTodo().getId() : null,
+            todo.getCreatedAt(),
+            todo.getCompletedAt(),
+            todo.getPriority()
+        ))
+        .toList();
+    }
+
     @GetMapping("/completed")
-    public List<TodoResponse> getAll(
-        @AuthenticationPrincipal LoginUserDetails userDetails,
-        @RequestParam(required = false) String status
+    public List<TodoResponse> getAllCompleted(
+        @AuthenticationPrincipal LoginUserDetails userDetails
     ) {
         List<TodoWithDepth> todos = _todoRepository.listTreeCompleted(userDetails.getId());
         return todos.stream()
@@ -68,9 +85,8 @@ public class TodoController {
     }
 
     @GetMapping("/uncompleted")
-    public List<TodoResponse> getAllTree(
-        @AuthenticationPrincipal LoginUserDetails userDetails,
-        @RequestParam(required = false) String status
+    public List<TodoResponse> getAllUnCompleted(
+        @AuthenticationPrincipal LoginUserDetails userDetails
     ) {
         List<TodoWithDepth> todos = _todoRepository.listTreeUncompleted(userDetails.getId());
         return todos.stream()
@@ -100,10 +116,18 @@ public class TodoController {
         @AuthenticationPrincipal LoginUserDetails userDetails, 
         @RequestBody TodoForm requestTodo
     ) {
+        TodoMaxPriority todoPriority = _todoRepository.findMaxPriorityByUserId(userDetails.getId());
+        Integer oldTodoPriority = todoPriority.getPriority();
+
+        if(oldTodoPriority == null){
+            oldTodoPriority = 0;
+        }
+
         Todo todo = new Todo();
         todo.setCreatedAt(new Date());
         todo.setUser(userDetails.getUser());
         todo.setContent(requestTodo.getContent());
+        todo.setPriority(oldTodoPriority + 1);
 
         String partentTodoId = requestTodo.getParentTodoId();
         if(partentTodoId != null){
@@ -120,7 +144,7 @@ public class TodoController {
     public Todo update(
         @AuthenticationPrincipal LoginUserDetails userDetails, 
         @PathVariable String id, 
-        @RequestBody Todo todo
+        @RequestBody TodoForm todo
     ) {
         Optional<Todo> exist = _todoRepository.findPermittedById(id, userDetails.getId());
         if (exist.isPresent()) {
@@ -129,6 +153,20 @@ public class TodoController {
             Date completedAt = todo.getCompletedAt();
             target.setContent(content);
             target.setCompletedAt(completedAt);
+
+            String partentTodoId = todo.getParentTodoId();
+            if(partentTodoId != null){
+                Optional<Todo> parentIsExist = _todoRepository.findPermittedById(
+                    partentTodoId, userDetails.getId()
+                );
+                if (parentIsExist.isPresent()) {
+                    Todo parentTarget = parentIsExist.get();
+                    target.setParentTodo(parentTarget);
+                }
+            }else{
+                target.setParentTodo(null);
+            }
+
             return _todoRepository.save(target);
         }
         return null;

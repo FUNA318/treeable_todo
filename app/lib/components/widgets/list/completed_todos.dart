@@ -6,19 +6,15 @@ import '../../../repositories/todo.dart';
 import '../../common/tile/todo_tile.dart';
 import '../../providers/todos.dart';
 
-class UncompletedTodoListLayer extends ConsumerWidget {
-  const UncompletedTodoListLayer({
-    super.key,
-    this.depth = 0,
-    this.parentTodoId,
-  });
+class CompletedTodoListLayer extends ConsumerWidget {
+  const CompletedTodoListLayer({super.key, this.depth = 0, this.parentTodoId});
 
   final int depth;
   final String? parentTodoId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final todoList = ref.watch(todoUncompletedListProvider);
+    final todoList = ref.watch(todoCompletedListProvider);
 
     if (todoList == null) return const SizedBox.shrink();
 
@@ -35,15 +31,16 @@ class UncompletedTodoListLayer extends ConsumerWidget {
     return Column(
       children: [
         ReorderableListView.builder(
+          physics: const NeverScrollableScrollPhysics(), // スクロールの競合を防ぐ
           shrinkWrap: true,
           onReorder: (oldIndex, newIndex) async {
             final newList = ref
-                .read(todoUncompletedListProvider.notifier)
-                .realign(oldIndex, newIndex);
+                .read(todoCompletedListProvider.notifier)
+                .realign(depth, oldIndex, newIndex, todos[oldIndex].parentTodo);
             await TodoRepository().bulkUpdate(
-              newList.map((e) => e.id).toList(),
+              newList.where((e) => e.depth == depth).map((e) => e.id).toList(),
             );
-            ref.read(todoUncompletedListProvider.notifier).fetch();
+            ref.read(todoCompletedListProvider.notifier).fetch();
           },
           itemCount: todos.length,
           itemBuilder: (context, index) {
@@ -52,9 +49,12 @@ class UncompletedTodoListLayer extends ConsumerWidget {
             if (todoList.any((v) => v.parentTodo == todo.id)) {
               parentTodo = todoList.firstWhere((v) => v.parentTodo == todo.id);
             }
-            final isExistNext = todoList.any(
-              (v) => v.depth == depth + 1 && v.parentTodo == todo.id,
-            );
+            final children =
+                todoList
+                    .where(
+                      (v) => v.depth == depth + 1 && v.parentTodo == todo.id,
+                    )
+                    .toList();
             return Padding(
               key: Key(todo.id),
               padding: EdgeInsets.only(left: 16.0 * depth),
@@ -63,9 +63,10 @@ class UncompletedTodoListLayer extends ConsumerWidget {
                   TodoTile(
                     todo: todo,
                     parentTodo: parentTodo,
+                    children: children,
                     onDismissed: (DismissDirection direction) async {
                       ref
-                          .read(todoUncompletedListProvider.notifier)
+                          .read(todoCompletedListProvider.notifier)
                           .removeIndex(index);
                       if (direction == DismissDirection.endToStart) {
                         await TodoRepository().delete(todo.id);
@@ -75,11 +76,15 @@ class UncompletedTodoListLayer extends ConsumerWidget {
                           completedAt: DateTime.now(),
                         );
                       }
-                      ref.read(todoUncompletedListProvider.notifier).fetch();
+                      ref.read(todoCompletedListProvider.notifier).fetch();
+                      return true;
                     },
                   ),
-                  isExistNext
-                      ? UncompletedTodoListLayer(depth: depth + 1)
+                  children.isNotEmpty
+                      ? CompletedTodoListLayer(
+                        depth: depth + 1,
+                        parentTodoId: todo.id,
+                      )
                       : const SizedBox.shrink(),
                 ],
               ),
